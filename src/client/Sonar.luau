@@ -32,6 +32,7 @@ export type Sonar = typeof(setmetatable(
 		rings: { Frame },
 		heart: TextLabel,
 		arrow: TextLabel,
+		sam: Frame,
 	},
 	Sonar
 ))
@@ -124,6 +125,7 @@ function Sonar.new(parent: Instance): Sonar
 		rings = {},
 		heart = mark(root, "♥", 20, FAMILY, 8),
 		arrow = mark(root, "▲", 13, FISH, 7),
+		sam = (nil :: any) :: Frame,
 	}, Sonar)
 	for _ = 1, 10 do
 		table.insert(self.reefs, round(canvas, 10, REEF, 0.5, 1))
@@ -139,6 +141,34 @@ function Sonar.new(parent: Instance): Sonar
 		table.insert(self.sharks, round(root, 9, SHARK, 0, 5))
 		table.insert(self.rings, ring(root, SHARK, 1.5, 0, 5))
 	end
+	-- Sam's boat: a little light blue hull with a mast
+	local sam = Instance.new("Frame")
+	sam.AnchorPoint = Vector2.new(0.5, 0.5)
+	sam.Size = UDim2.fromOffset(13, 12)
+	sam.BackgroundTransparency = 1
+	sam.Visible = false
+	sam.ZIndex = 6
+	local hull = Instance.new("Frame")
+	hull.AnchorPoint = Vector2.new(0.5, 1)
+	hull.Position = UDim2.fromScale(0.5, 1)
+	hull.Size = UDim2.fromOffset(13, 5)
+	hull.BackgroundColor3 = Color3.fromHex("9fd6ff")
+	hull.BorderSizePixel = 0
+	hull.ZIndex = 6
+	local hullCorner = Instance.new("UICorner")
+	hullCorner.CornerRadius = UDim.new(0, 3)
+	hullCorner.Parent = hull
+	hull.Parent = sam
+	local mast = Instance.new("Frame")
+	mast.AnchorPoint = Vector2.new(0.5, 0)
+	mast.Position = UDim2.fromScale(0.5, 0)
+	mast.Size = UDim2.fromOffset(2, 8)
+	mast.BackgroundColor3 = Color3.fromHex("9fd6ff")
+	mast.BorderSizePixel = 0
+	mast.ZIndex = 6
+	mast.Parent = sam
+	sam.Parent = root
+	self.sam = sam
 	local me = mark(root, "▲", 15, Color3.new(1, 1, 1), 9)
 	me.Position = UDim2.fromOffset(RADIUS, RADIUS)
 	me.Visible = true
@@ -232,6 +262,11 @@ function Sonar.update(self: Sonar, session: any, time: number)
 			dot.Visible = false
 			ringFrame.Visible = false
 		end
+	end
+
+	do
+		local mx, my = map(session.samX, session.samZ)
+		place(self.sam, mx, my, 6)
 	end
 
 	local lost = session.lost

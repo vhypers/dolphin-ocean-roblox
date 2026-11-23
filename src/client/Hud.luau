@@ -45,6 +45,7 @@ export type Hud = typeof(setmetatable(
 		gentle: boolean,
 		overStats: { string },
 		vitals: Frame,
+		taskPanel: Frame,
 		sonar: Sonar.Sonar,
 		marks: ScreenGui,
 		reticle: Frame,
@@ -131,6 +132,7 @@ function Hud.new(parent: Instance, onAction: (string) -> ()): Hud
 		gentle = true,
 		overStats = {},
 		vitals = (nil :: any) :: Frame,
+		taskPanel = (nil :: any) :: Frame,
 		sonar = (nil :: any) :: Sonar.Sonar,
 		marks = (nil :: any) :: ScreenGui,
 		reticle = (nil :: any) :: Frame,
@@ -142,6 +144,7 @@ function Hud.new(parent: Instance, onAction: (string) -> ()): Hud
 	self:_buildTitle()
 	self:_buildPause()
 	self:_buildOver()
+	self:_buildOpening()
 	self:_buildMarks()
 	gui.Parent = parent
 	self.cover.Parent = parent
@@ -214,12 +217,13 @@ function Hud._buildTitle(self: Hud)
 	line("titleGoal", TEXT_FONT, 22, 30, 2, SOFT)
 	line("titleStep", TEXT_FONT, 15, 20, 3, Color3.fromRGB(140, 180, 210))
 	self:_button(f, "playButton", "play", 4)
-	self:_button(f, "languageButton", "language", 5)
-	self:_button(f, "difficultyButton", "difficulty", 6)
-	line("difficultyNote", TEXT_FONT, 15, 40, 7, SOFT)
+	self:_button(f, "storyButton", "story", 5)
+	self:_button(f, "languageButton", "language", 6)
+	self:_button(f, "difficultyButton", "difficulty", 7)
+	line("difficultyNote", TEXT_FONT, 15, 40, 8, SOFT)
 	local help = label(f, "help", TEXT_FONT, 16, UDim2.new(), UDim2.new(1, 0, 0, 0), Enum.TextXAlignment.Left)
 	help.AutomaticSize = Enum.AutomaticSize.Y
-	help.LayoutOrder = 8
+	help.LayoutOrder = 9
 	help.TextColor3 = SOFT
 	help.LineHeight = 1.15
 	self.texts.help = help
@@ -307,6 +311,22 @@ function Hud._buildPlay(self: Hud)
 	self:_bar(vitals, "calf", 126, Color3.fromHex("ff9ecb")) -- shown while there is a calf
 	self.bars.calf.extra.Size = UDim2.new(0, 100, 0, 20)
 	self.bars.calf.extra.TextWrapped = false
+
+	-- Sam's task for the day: a star and how many he has given, the progress, and the task
+	local task = panel(f, "Task", UDim2.new(0, 290, 0, 62), UDim2.new(0, 16, 0, 152))
+	self.taskPanel = task
+	local star = label(task, "Star", BOLD_FONT, 20, UDim2.new(0, 12, 0, 6), UDim2.new(0, 22, 0, 22))
+	star.Text = "★"
+	star.TextColor3 = Color3.fromRGB(255, 214, 80)
+	self.texts.taskTitle = label(task, "Title", BOLD_FONT, 15, UDim2.new(0, 38, 0, 8), UDim2.new(1, -100, 0, 20))
+	self.texts.taskProgress = label(task, "Progress", BOLD_FONT, 15, UDim2.new(1, -70, 0, 8), UDim2.new(0, 56, 0, 20), Enum.TextXAlignment.Right)
+	local taskLine = label(task, "Line", TEXT_FONT, 17, UDim2.new(0, 14, 0, 32), UDim2.new(1, -28, 0, 22))
+	taskLine.TextScaled = true
+	local fit = Instance.new("UITextSizeConstraint")
+	fit.MaxTextSize = 17
+	fit.MinTextSize = 11
+	fit.Parent = taskLine
+	self.texts.taskLine = taskLine
 
 	local day = panel(f, "Day", UDim2.new(0, 300, 0, 58), UDim2.new(0.5, 0, 0, 12), Vector2.new(0.5, 0))
 	self.texts.day = label(day, "DayText", TITLE_FONT, 24, UDim2.new(0, 0, 0, 4), UDim2.new(1, 0, 0, 30), Enum.TextXAlignment.Center)
@@ -460,6 +480,63 @@ function Hud.show(self: Hud, name: string)
 	self.screens.play.Visible = name == "play" or name == "pause"
 	self.screens.pause.Visible = name == "pause"
 	self.screens.over.Visible = name == "over"
+	self.screens.opening.Visible = name == "opening"
+end
+
+-- The story's frame: black bars above and below, the line of story in a dark box, and how to
+-- skip (Godot's OpeningCaption). Lives on the full-screen layer, over Roblox's top bar.
+function Hud._buildOpening(self: Hud)
+	local f = Instance.new("Frame")
+	f.Name = "Opening"
+	f.Size = UDim2.fromScale(1, 1)
+	f.BackgroundTransparency = 1
+	f.Visible = false
+	f.Parent = self.cover
+	for _, top in { true, false } do
+		local bar = Instance.new("Frame")
+		bar.Size = UDim2.fromScale(1, 0.1)
+		bar.Position = if top then UDim2.fromScale(0, 0) else UDim2.fromScale(0, 0.9)
+		bar.BackgroundColor3 = Color3.new(0, 0, 0)
+		bar.BorderSizePixel = 0
+		bar.Parent = f
+	end
+	local box = Instance.new("Frame")
+	box.Name = "CaptionBox"
+	box.AnchorPoint = Vector2.new(0.5, 1)
+	box.Position = UDim2.new(0.5, 0, 0.9, -18)
+	box.Size = UDim2.new(0.8, 0, 0, 0)
+	box.AutomaticSize = Enum.AutomaticSize.Y
+	box.BackgroundColor3 = Color3.new(0, 0.05, 0.1)
+	box.BackgroundTransparency = 0.45
+	box.BorderSizePixel = 0
+	corner(box, 14)
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 10)
+	pad.PaddingBottom = UDim.new(0, 10)
+	pad.PaddingLeft = UDim.new(0, 18)
+	pad.PaddingRight = UDim.new(0, 18)
+	pad.Parent = box
+	box.Parent = f
+	local caption = label(box, "Caption", TEXT_FONT, 24, UDim2.new(), UDim2.new(1, 0, 0, 0), Enum.TextXAlignment.Center)
+	caption.AutomaticSize = Enum.AutomaticSize.Y
+	local captionScale = Instance.new("UITextSizeConstraint")
+	captionScale.MaxTextSize = 26
+	captionScale.Parent = caption
+	self.texts.caption = caption
+	local skip = label(f, "Skip", TEXT_FONT, 14, UDim2.new(1, -20, 0.05, -10), UDim2.new(0, 400, 0, 20), Enum.TextXAlignment.Right)
+	skip.AnchorPoint = Vector2.new(1, 0)
+	skip.TextTransparency = 0.4
+	self.texts.skip = skip
+	self.screens.opening = f
+end
+
+-- the line of story, faded in and out
+function Hud.caption(self: Hud, text: string, fade: number)
+	local caption = self.texts.caption
+	caption.Text = text
+	caption.TextTransparency = 1 - fade
+	local box = caption.Parent :: Frame
+	box.BackgroundTransparency = 1 - 0.55 * fade
 end
 
 function Hud.setLoading(self: Hud, fraction: number)
@@ -476,8 +553,10 @@ function Hud.refresh(self: Hud, gentle: boolean)
 	local t = self.texts
 	t.titleName.Text = Lang.t("Spring")
 	t.titleGoal.Text = Lang.t("Find your family across the oceans in 30 days!")
-	t.titleStep.Text = Lang.t('Roblox step R2 "Sharks and the pod"')
+	t.titleStep.Text = Lang.t('Roblox step R3 "The story and Sam"')
 	t.playButton.Text = key(Lang.t("Swim!"), "jump")
+	t.storyButton.Text = key(Lang.t("Watch the story"), "story")
+	t.skip.Text = Lang.t("Space, Enter or click: skip")
 	local languageName = if Lang.language == "ru" then Lang.t("Russian") else Lang.t("English")
 	t.languageButton.Text = key(Lang.f("Language: %s", languageName), "language")
 	t.pauseLanguageButton.Text = t.languageButton.Text
@@ -490,6 +569,7 @@ function Hud.refresh(self: Hud, gentle: boolean)
 		Lang.t("Boost: Space, Shift or hold the right mouse button"),
 		Lang.t("Hit: X, Q or click. Pod: F or E"),
 		Lang.t("Hit rams a shark, your Pod chases it off"),
+		Lang.t("Do Sam's task each day for a star"),
 		Lang.t("Jump: J, Enter or the mouse wheel. Rise steeply to leap"),
 		Lang.t("Hold Boost in the air to spin"),
 		Lang.t("Look back: B   Spring's eyes: V   Pause: P"),
@@ -585,6 +665,19 @@ function Hud.update(self: Hud, dt: number, session: any, screenHeight: number)
 	local track = calfBar.fill.Parent :: Frame
 	track.Visible = showCalf
 	self.vitals.Size = UDim2.new(0, if showCalf then 330 else 290, 0, if showCalf then 160 else 132)
+	self.taskPanel.Position = UDim2.new(0, 16, 0, if showCalf then 180 else 152)
+
+	-- Sam's task
+	local task = session.task
+	self.taskPanel.Visible = task ~= nil
+	if task then
+		self.texts.taskTitle.Text = Lang.f("%d  Sam's task", session.stars)
+		self.texts.taskProgress.Text = if task.count > 1 and not session.taskDone
+			then string.format("%d/%d", session.taskCount, task.count)
+			else ""
+		self.texts.taskLine.Text = if session.taskDone then Lang.t("Done!") else session:taskLine(false)
+		self.texts.taskLine.TextColor3 = if session.taskDone then Color3.fromRGB(126, 224, 138) else WHITE
+	end
 	if calf then
 		local little = calf.food / 100
 		calfBar.fill.Size = UDim2.fromScale(math.clamp(little, 0, 1), 1)
@@ -633,11 +726,13 @@ function Hud.showOver(self: Hud, session: any)
 		elseif session.won then Lang.t("You swam through all 30 days!")
 		else (if session.rescueReason ~= "" then session.rescueReason else Lang.t("The game is over"))
 	self.texts.overStats.Text = string.format(
-		"%s: %d\n%s: %d\n%s: %s\n%s: %d\n%s: %d",
+		"%s: %d\n%s: %d\n%s: %d\n%s: %s\n%s: %d\n%s: %d",
 		Lang.t("fish caught"),
 		session.fish,
 		Lang.t("days lived"),
 		math.min(session.day, Rules.DAYS),
+		Lang.t("stars earned"),
+		session.stars,
 		Lang.t("family found"),
 		Lang.f("%d of %d", session.familyFound, #Rules.FAMILY_DAYS),
 		Lang.t("sharks driven off"),

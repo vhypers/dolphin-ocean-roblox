@@ -462,7 +462,128 @@ do
 	local eater = Session.new(true, 33)
 	table.clear(eater.messages)
 	eater:eat(25, 0)
-	check(eater.level == 2 and eater.messages[1].text == "Level 2! Sharks are faster", "Level 2 after 25 fish")
+	local levelled = false
+	for _, m in eater.messages do
+		levelled = levelled or m.text == "Level 2! Sharks are faster"
+	end
+	check(eater.level == 2 and levelled, "Level 2 after 25 fish")
+end
+
+-- ---------- Sam and his tasks ----------
+do
+	local game = Session.new(true, 41)
+	local s = game.swimmer
+	local task = game.task
+	assert(task)
+	check(task.kind == "fish" and task.count == 12, "day 1's task: catch 12 fish")
+	local away = math.sqrt((game.samX - s.x) ^ 2 + (game.samZ - s.z) ^ 2)
+	check(away >= 30 and away <= 75, "Sam's boat waits 35 to 70 m away (" .. math.floor(away) .. " m)")
+	check(game:taskLine(true) == "catch 12 fish" and game:taskLine(false) == "Catch 12 fish", "the task in words")
+	Lang.language = "ru"
+	check(game:taskLine(false) == "Поймай 12 рыб", "and in Russian")
+	Lang.language = "en"
+	-- Sam asks for it a few seconds in
+	table.clear(game.messages)
+	game:step(7, 0, 0, false)
+	local asked = false
+	for _, m in game.messages do
+		asked = asked or m.text == "Sam asks: catch 12 fish"
+	end
+	check(asked, "Sam asks for the day's task")
+	-- twelve fish: a star, and a heart back if she was hurt
+	game.lives = 2
+	table.clear(game.messages)
+	for _ = 1, 11 do
+		game:eat(1, 0)
+	end
+	check(game.taskCount == 11 and not game.taskDone, "11 of 12")
+	game:eat(1, 0)
+	check(game.taskDone and game.stars == 1 and game.lives == 3 and game.food == Rules.FOOD_MAX, "task done: a star, a heart and full food")
+	local said = false
+	for _, m in game.messages do
+		said = said or m.text == "Task done! A star and a heart"
+	end
+	check(said, "Sam's star is announced")
+	game:eat(12, 0)
+	check(game.stars == 1, "one star a day")
+	-- the next day brings a different task, and only one she can do now
+	local kinds = {}
+	for day = 2, Rules.DAYS do
+		local before = (game.task :: any).kind
+		game.dayTime = Rules.DAY_LENGTH - 0.01
+		game.day = day - 1
+		game.over = false
+		game:_passTime(0.02)
+		local now = game.task :: any
+		kinds[now.kind] = true
+		check(now.kind ~= before and game:canDo(now.kind), "day " .. day .. ": a new task she can do (" .. now.kind .. ")")
+		if now.kind == "sp" then
+			check(now.species >= 0 and now.species <= 7, "a Red Sea fish")
+		end
+	end
+	check(not kinds.turtle and not kinds.cur and not kinds.rings, "no tasks for things that come later")
+	-- three kinds of fish
+	game.task = { kind = "kinds", count = 3, species = -1 }
+	game.taskDone = false
+	table.clear(game._dayKinds)
+	game._dayKindCount = 0
+	game:eat(1, 0)
+	game:eat(1, 0)
+	game:eat(1, 5)
+	check(game.taskCount == 2 and not game.taskDone, "two kinds so far")
+	game:eat(1, 7)
+	check(game.taskDone, "three kinds of fish")
+	-- 5 of one kind
+	game.task = { kind = "sp", count = 5, species = 3 }
+	game.taskDone = false
+	game.taskCount = 0
+	game:eat(5, 2)
+	check(game.taskCount == 0, "other fish do not count")
+	game:eat(5, 3)
+	check(game.taskDone, "5 butterflyfish")
+	check(game:taskLine(true) == "catch 5 butterflyfish", "the fish is named")
+	-- the lighthouse island
+	game.task = { kind = "light", count = 1, species = -1 }
+	game.taskDone = false
+	game.taskCount = 0
+	local island = game.bed.islands[1]
+	s.x, s.z = island.cx, island.cz
+	game:_lighthouse()
+	check(game.taskDone, "she reached the lighthouse")
+
+	-- Sam's boat: she can't swim through it; he cheers when she leaps nearby
+	local boat = Session.new(true, 42)
+	local b = boat.swimmer
+	b.x, b.y, b.z = boat.samX, Rules.SEA_LEVEL - 1, boat.samZ
+	boat:_samsBoat()
+	local c, d = math.cos(boat.samHeading), math.sin(boat.samHeading)
+	local side = (b.x - boat.samX) * c - (b.z - boat.samZ) * d
+	check(math.abs(math.abs(side) - 2.05) < 1e-6, "the hull pushes her aside")
+	boat.task = { kind = "boat", count = 1, species = -1 }
+	table.clear(boat.messages)
+	b.x = boat.samX + 15
+	b.jumping = true
+	boat:_samsBoat()
+	local cheered = false
+	for _, m in boat.messages do
+		cheered = cheered or m.text == "Sam cheers for you!"
+	end
+	check(boat.taskDone and boat.samWaved and cheered, "a leap by Sam's boat")
+	-- the rescuers bring her back beside Sam's boat
+	b.jumping = false
+	boat.lives = 1
+	b.invulnerable = 0
+	boat:hurt("test")
+	boat:step(Rules.RESCUE_TIME + 0.05, 0, 0, false)
+	local near = math.sqrt((b.x - boat.samX) ^ 2 + (b.z - boat.samZ) ^ 2)
+	check(boat.rescueLeft <= 0 and near < 20, "after a rescue she is next to Sam's boat (" .. math.floor(near) .. " m)")
+	-- spins in the air count for the spins task
+	boat.task = { kind = "tricks", count = 3, species = -1 }
+	boat.taskDone = false
+	boat.taskCount = 0
+	boat.swimmer:emit("landed", 2)
+	boat.swimmer:emit("landed", 1)
+	check(boat.taskDone, "3 spins")
 end
 
 -- ---------- language ----------

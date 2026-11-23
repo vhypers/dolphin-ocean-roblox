@@ -1,11 +1,12 @@
 --!strict
 -- The rules of one game, without graphics: days, hearts, food, air, fish, her hurt tail, sharks,
--- her Hit, her family who find her one by one and become her pod, the calf, and the rescue in
--- Gentle. Ported from the Godot game's scripts/game_session.gd and the shark parts of
--- scripts/life.gd; Sam, tasks, magic and the other oceans arrive in later steps.
+-- her Hit, her family who find her one by one and become her pod, the calf, Sam's boat and his
+-- daily task, and the rescue in Gentle. Ported from the Godot game's scripts/game_session.gd and
+-- the shark parts of scripts/life.gd; magic, nets, treasures and the other oceans come later.
 
 local Rules = if script then require(script.Parent.Rules) else require("./Rules")
 local Lang = if script then require(script.Parent.Lang) else require("./Lang")
+local Data = if script then require(script.Parent.Data) else require("./Data")
 local Rng = if script then require(script.Parent.Rng) else require("./Rng")
 local SeaFloor = if script then require(script.Parent.SeaFloor) else require("./SeaFloor")
 local Swimmer = if script then require(script.Parent.Swimmer) else require("./Swimmer")
@@ -82,9 +83,24 @@ export type Mate = {
 	growth: number,
 }
 
+-- Sam's task for the day: a copy of one of Data.tasks, with the fish wanted for "sp"
+export type Task = { kind: string, count: number, species: number }
+
 export type Session = typeof(setmetatable(
 	{} :: {
 		gentle: boolean,
+		samX: number, -- Sam's boat, on the water
+		samZ: number,
+		samHeading: number,
+		samWaving: boolean, -- she is within 35 m
+		samWaved: boolean, -- he has cheered for her today
+		task: Task?,
+		taskCount: number,
+		taskDone: boolean,
+		stars: number,
+		_dayKinds: { [number]: boolean },
+		_dayKindCount: number,
+		_taskHint: number,
 		ocean: number,
 		bed: SeaFloor.SeaFloor,
 		rng: Rng.Rng,
@@ -183,6 +199,18 @@ function Session.new(gentle: boolean, seed: number?): Session
 	local bed = SeaFloor.new(0)
 	local self = setmetatable({
 		gentle = gentle,
+		samX = 0,
+		samZ = 0,
+		samHeading = 0,
+		samWaving = false,
+		samWaved = false,
+		task = nil,
+		taskCount = 0,
+		taskDone = false,
+		stars = 0,
+		_dayKinds = {},
+		_dayKindCount = 0,
+		_taskHint = 6.5,
 		ocean = 0,
 		bed = bed,
 		rng = Rng.new(if seed then seed + 101 else os.time()),
@@ -269,6 +297,8 @@ function Session.new(gentle: boolean, seed: number?): Session
 	for _ = 1, Rules.POD_START do
 		self:_addMate()
 	end
+	self:_placeSam()
+	self:_newTask()
 	self:_checkFamily(false)
 	self:banner(Lang.f("Day %d. Good luck!", self.day), true)
 	self:say(Lang.t("Swim with the arrows, WASD or the mouse. Yellow dots on the sonar are fish"), 5.0)
@@ -281,6 +311,7 @@ function Session._connect(self: Session)
 		self.jumps += 1
 		self:banner(Lang.t("Leap!"), false)
 		self:say(Lang.t("Slow motion! Look around with the arrows or the mouse"), 3.0)
+		self:tickTask("jump", 1)
 	end
 	swimmer.listeners.splashed = function(x: number, y: number, z: number)
 		self:effect("splash", x, y, z, 1)
@@ -308,6 +339,7 @@ function Session._connect(self: Session)
 		self.tricks += spins
 		local words = { "Spin!", "Double spin!", "Triple spin!" }
 		self:banner(Lang.t(words[math.min(spins, 3)]), spins > 1)
+		self:tickTask("tricks", spins)
 	end
 end
 
@@ -438,6 +470,8 @@ function Session._tick(self: Session, dt: number, steerX: number, steerY: number
 	if self.over then
 		return
 	end
+	self:_samsBoat()
+	self:_lighthouse()
 	if lunged and self.attack == nil then
 		self.safeLeft = Rules.ATTACK_SAFE_AFTER
 		s.lunging = false
@@ -457,11 +491,20 @@ function Session._passTime(self: Session, dt: number)
 			if self.day == Rules.DAYS then Lang.t("The last day! Hold on!") else Lang.f("Day %d has begun!", self.day),
 			true
 		)
+		self:_newTask()
+		self._taskHint = 3.0
 		self:_healTail(Rules.TAIL_PER_DAY)
 		self:_checkFamily(true)
 		if self.calf == nil and self.calfNext > 0 and self.day >= self.calfNext then
 			self:_newCalf()
 			self:say(Lang.t("A calf was born in your pod! Protect it and feed it"), 5.0)
+			self._taskHint = 6.5
+		end
+	end
+	if self._taskHint > 0.0 then
+		self._taskHint -= dt
+		if self._taskHint <= 0.0 and not self.taskDone and self.task then
+			self:say(Lang.f("Sam asks: %s", self:taskLine(true)), 5.0)
 		end
 	end
 	local night = self:isNight()
@@ -517,6 +560,7 @@ function Session._fishAndEating(self: Session)
 								self:eat(1, school.species)
 							else
 								self:_feedCalf(15.0, 1.0)
+								self:tickTask("calf", 1)
 							end
 						end
 					end
@@ -529,7 +573,14 @@ end
 function Session.eat(self: Session, count: number, species: number)
 	self.fish += count
 	self.food = math.min(Rules.FOOD_MAX, self.food + Rules.FOOD_PER_FISH * count)
+	self:tickTask("fish", count)
+	self:tickTask("sp", count, species)
 	self.seen[species] = true
+	if not self._dayKinds[species] then
+		self._dayKinds[species] = true
+		self._dayKindCount += 1
+		self:tickTask("kinds", self._dayKindCount)
+	end
 	self:_feedCalf(4.0 * count, 0.34 * count)
 	if math.floor(self.fish / Rules.FISH_PER_LEVEL) + 1 > self.level then
 		self.level += 1
@@ -945,6 +996,7 @@ function Session._hit(self: Session, shark: Shark, mine: boolean)
 		s.energy = math.max(0.0, s.energy - 0.25)
 	end
 	self.driven += 1
+	self:tickTask("shark", 1)
 	self:effect("bubbles", s.x + s.dx * 2.3, s.y + s.dy * 2.3, s.z + s.dz * 2.3, 34)
 	self:banner(Lang.t("Snout hit! The shark swims away"), false)
 end
@@ -1018,6 +1070,7 @@ function Session.pressPod(self: Session)
 		near[i].timer = 14.0
 		self.driven += 1
 	end
+	self:tickTask("shark", count)
 	for i, mate in self.pod do
 		mate.rush = near[(i - 1) % count + 1]
 		mate.rushTime = Rules.POD_RUSH
@@ -1128,6 +1181,163 @@ function Session._familyJoins(self: Session)
 	end
 end
 
+-- ---------- Sam: his boat and his task for the day ----------
+
+-- Sam's boat waits 35 to 70 m from where she starts
+function Session._placeSam(self: Session)
+	local s = self.swimmer
+	local x, z = self.bed:freePoint(self.rng, 35, 70, s.x, s.z)
+	self.samX, self.samZ = x, z
+	self.samHeading = self.rng:randf() * Rules.TAU
+	self.samWaved = false
+end
+
+-- She can't swim through the hull (bow along the boat's heading, 10 m long, 4 m wide); Sam waves
+-- while she is within 35 m and cheers when she leaps there.
+function Session._samsBoat(self: Session)
+	local s = self.swimmer
+	local rx, ry, rz = s.x - self.samX, s.y - SEA, s.z - self.samZ
+	local c, d = math.cos(self.samHeading), math.sin(self.samHeading)
+	local x, z = rx * c - rz * d, rx * d + rz * c
+	if math.abs(x) < 2.0 and math.abs(z) < 5.2 and ry > -2.4 and ry < 4.0 then
+		x = if x < 0.0 then -2.05 else 2.05
+		s.x = self.samX + x * c + z * d
+		s.z = self.samZ - x * d + z * c
+		if s.jumping then
+			s.vx *= -0.4
+			s.vz *= -0.4
+		end
+	end
+	self.samWaving = length(rx, ry, rz) < 35.0
+	if self.samWaving and s.jumping then
+		-- his cheer first, so the task's star (if this was it) is the message that stays
+		if not self.samWaved then
+			self.samWaved = true
+			self:banner(Lang.t("Sam cheers for you!"), false)
+		end
+		self:tickTask("boat", 1)
+	end
+end
+
+-- the lighthouse stands on the first island
+function Session._lighthouse(self: Session)
+	local task = self.task
+	if task and task.kind == "light" and not self.bed.icy then
+		local island = self.bed.islands[1]
+		local s = self.swimmer
+		if math.sqrt((island.cx - s.x) ^ 2 + (island.cz - s.z) ^ 2) < island.radius * 0.8 then
+			self:tickTask("light", 1)
+		end
+	end
+end
+
+-- the fish of this ocean, in order
+function Session.speciesHere(self: Session): { number }
+	local info = Data.oceans[self.ocean + 1]
+	local seen, list = {}, {}
+	for _, group in { info.reef, info.open } do
+		for _, species in group do
+			if not seen[species] then
+				seen[species] = true
+				table.insert(list, species)
+			end
+		end
+	end
+	table.sort(list)
+	return list
+end
+
+-- Whether a task can be done here and now. Tasks that need animals, healing corals, currents,
+-- nets, treasures or rings wait for the steps that bring those.
+function Session.canDo(self: Session, kind: string): boolean
+	if kind == "light" then
+		return not self.bed.icy
+	elseif kind == "calf" then
+		return self.calf ~= nil
+	elseif kind == "kinds" then
+		return #self:speciesHere() >= 3
+	elseif kind == "fish" or kind == "jump" or kind == "shark" or kind == "boat" or kind == "sp" or kind == "tricks" then
+		return true
+	end
+	return false
+end
+
+function Session._newTask(self: Session)
+	local all = Data.tasks
+	local picked = all[1]
+	local last = self.task
+	if self.day > 1 or not self:canDo(picked.kind) then
+		for _ = 1, 60 do
+			local offer = all[self.rng:below(#all) + 1]
+			if (last == nil or offer.kind ~= last.kind) and self:canDo(offer.kind) then
+				picked = offer
+				break
+			end
+		end
+	end
+	local task: Task = { kind = picked.kind, count = picked.count, species = -1 }
+	if task.kind == "sp" then
+		local choices = self:speciesHere()
+		task.species = choices[self.rng:below(#choices) + 1]
+	end
+	self.task = task
+	self.taskCount = 0
+	self.taskDone = false
+	table.clear(self._dayKinds)
+	self._dayKindCount = 0
+end
+
+function Session.tickTask(self: Session, kind: string, amount: number, species: number?)
+	local task = self.task
+	if task == nil or self.taskDone or task.kind ~= kind then
+		return
+	end
+	if kind == "sp" and species ~= task.species then
+		return
+	end
+	self.taskCount = if kind == "kinds" then amount else self.taskCount + amount
+	if self.taskCount < task.count then
+		return
+	end
+	self.taskCount = task.count
+	self.taskDone = true
+	self.stars += 1
+	local healed = self.lives < Rules.LIVES
+	if healed then
+		self.lives += 1
+	end
+	self.food = Rules.FOOD_MAX
+	self:banner(
+		if healed then Lang.t("Task done! A star and a heart") else Lang.t("Task done! The star is yours"),
+		true
+	)
+	local s = self.swimmer
+	self:effect("bubbles", s.x, s.y, s.z, 30)
+end
+
+-- today's task in the chosen language, worked out each time so switching language updates it
+function Session.taskLine(self: Session, full: boolean): string
+	local task = self.task
+	if task == nil then
+		return ""
+	end
+	local ru = Lang.language == "ru"
+	if task.kind == "sp" then
+		local names = Data.many[task.species + 1]
+		local many = if ru then names.ru else names.en
+		return if full then Lang.f("catch 5 %s", many) else "5 " .. many
+	end
+	for _, offer in Data.tasks do
+		if offer.kind == task.kind then
+			if full then
+				return if ru then offer.fullRu else offer.full
+			end
+			return if ru then offer.shortRu else offer.short
+		end
+	end
+	return ""
+end
+
 -- ---------- hurt, rescue and the end ----------
 
 function Session.hurt(self: Session, reason: string?)
@@ -1164,7 +1374,8 @@ function Session._finishRescue(self: Session)
 	self.lives = Rules.LIVES
 	self.food = Rules.FOOD_MAX
 	local s = self.swimmer
-	local x, _, z = self.bed:pushOut(s.x + 7, s.y, s.z, 1.6, SEA - 1.1)
+	-- the rescuers bring her back beside Sam's boat
+	local x, _, z = self.bed:pushOut(self.samX + 7, SEA, self.samZ, 1.6, SEA - 1.1)
 	s:reset(x, SEA - 2.0, z, s.yaw)
 	for _, mate in self.pod do
 		local ox, oy, oz = Rules.turn(mate.ox, mate.oy, mate.oz, s.yaw)

@@ -32,6 +32,8 @@ Input.KEYS = {
 	language = { K.L },
 	difficulty = { K.H },
 	menu = { K.Backspace },
+	story = { K.T }, -- watch the opening story again, from the title
+	skip = { K.Space }, -- skips the story (so do Enter and a click)
 }
 
 local HELD = { up = true, down = true, left = true, right = true, boost = true }

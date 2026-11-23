@@ -13,6 +13,7 @@ local Spring = ReplicatedStorage:WaitForChild("Spring")
 local Rules = require(Spring:WaitForChild("Rules"))
 local Lang = require(Spring:WaitForChild("Lang"))
 local Session = require(Spring:WaitForChild("Session"))
+local Data = require(Spring:WaitForChild("Data"))
 
 local Input = require(script.Parent:WaitForChild("Input"))
 local Hud = require(script.Parent:WaitForChild("Hud"))
@@ -22,6 +23,9 @@ local SharkView = require(script.Parent:WaitForChild("SharkView"))
 local PodView = require(script.Parent:WaitForChild("PodView"))
 local ChaseCamera = require(script.Parent:WaitForChild("ChaseCamera"))
 local Effects = require(script.Parent:WaitForChild("Effects"))
+local Shapes = require(script.Parent:WaitForChild("Shapes"))
+local Opening = require(script.Parent:WaitForChild("Opening"))
+local World = require(script.Parent:WaitForChild("World"))
 
 -- Roblox's own panels (chat, player list, backpack) are hidden: this is a one-player game
 task.spawn(function()
@@ -50,8 +54,21 @@ local dolphin = DolphinView.new(worldFolder)
 local fishView = FishView.new(session.schools, worldFolder)
 local sharkView = SharkView.new(session.sharks, worldFolder)
 local podView = PodView.new(worldFolder)
+local samBoat = Shapes.boat(worldFolder, "rescue")
 local chase = ChaseCamera.new()
 chase:snapBehind(session.swimmer)
+
+-- the lighthouse on the first island (Sam's task "find the lighthouse")
+do
+	local island = session.bed.islands[1]
+	Shapes.lighthouse(worldFolder, World.point(island.cx, session.bed:height(island.cx, island.cz) - 0.3, island.cz))
+end
+
+-- the story plays before the first swim of each visit, and from the title with "Watch the story"
+local HIDDEN = CFrame.new(0, -400, 0)
+local opening: Opening.Opening? = nil
+local openingThenPlay = false
+local seenOpening = false
 
 -- the pod's fight with a shark, watched from above, with a moment of slow motion at the first hit
 local podShow = 0.0
@@ -99,6 +116,30 @@ local function toTitle()
 	hud:show("title")
 end
 
+local function startOpening(thenPlay: boolean)
+	openingThenPlay = thenPlay
+	opening = Opening.new(worldFolder, session.bed)
+	state = "opening"
+	Input.releaseAll()
+	hud:clearMessages()
+	hud:show("opening")
+end
+
+local function endOpening()
+	local story = opening
+	if story then
+		story:destroy()
+	end
+	opening = nil
+	seenOpening = true
+	if openingThenPlay then
+		newGame()
+	else
+		chase:snapBehind(session.swimmer)
+		toTitle()
+	end
+end
+
 local function pause()
 	if state == "playing" then
 		state = "paused"
@@ -112,9 +153,23 @@ local function act(action: string)
 		pause()
 		return
 	end
-	if state == "title" then
+	if state == "opening" then
+		if action == "skip" or action == "jump" or action == "play" or action == "attack" then
+			-- not in its first half second, so the press that started it (or a double tap) can't end it
+			local story = opening
+			if story and story.time > 0.5 then
+				story:skip()
+			end
+		end
+	elseif state == "title" then
 		if action == "play" or action == "jump" then
-			newGame()
+			if seenOpening then
+				newGame()
+			else
+				startOpening(true)
+			end
+		elseif action == "story" then
+			startOpening(false)
 		elseif action == "language" then
 			toggleLanguage()
 		elseif action == "difficulty" then
@@ -297,11 +352,40 @@ RunService:BindToRenderStep("Spring", Enum.RenderPriority.Camera.Value + 1, func
 			hud:showOver(session)
 			hud:show("over")
 		end
-	elseif state == "title" or state == "loading" then
-		-- the sea lives on behind the title
+	elseif state == "title" or state == "loading" or state == "opening" then
+		-- the sea lives on behind the title and the story
 		session.schools:advance(real, swimmer.x, swimmer.y, swimmer.z)
 		table.clear(session.messages)
 		table.clear(session.effects)
+	end
+
+	if state == "opening" then
+		local story = opening
+		if story and story:advance(real) then
+			camera.CameraType = Enum.CameraType.Scriptable
+			camera.CFrame = story.eye
+			camera.FieldOfView = story.fov
+			hud:caption(Lang.t(story.caption), story.fade)
+			dolphin:pose(HIDDEN, 0, 0, 1)
+			Shapes.hide(samBoat)
+			sharkView:update(session.sharks, chase.x, chase.y, chase.z, false)
+			podView:clear()
+			fishView:update(session.schools, session.schools.time)
+			light(story.dayTime)
+			hud:mark(session, camera, false, clock)
+			return
+		end
+		endOpening()
+	end
+
+	-- Sam's boat rides the waves; Sam and the rescuer wave while she is near
+	do
+		local x, z, wave = session.samX, session.samZ, 0.5
+		local y = Rules.SEA_LEVEL + Rules.waveHeight(x, z, clock, wave) * 0.85
+		local pitch = (Rules.waveHeight(x, z + 3, clock, wave) - Rules.waveHeight(x, z - 3, clock, wave)) / 6
+		local roll = (Rules.waveHeight(x + 2, z, clock, wave) - Rules.waveHeight(x - 2, z, clock, wave)) / 4
+		Shapes.wave(samBoat, session.samWaving and state == "playing", clock)
+		Shapes.place(samBoat, World.frame(x, y, z, session.samHeading, pitch, roll))
 	end
 
 	followPod(real, state == "playing")
@@ -353,6 +437,33 @@ if RunService:IsStudio() then
 			session.calmLeft = n or 999
 		elseif word == "air" then
 			s.air = Rules.AIR_MAX
+		elseif word == "task" then
+			local kind = string.match(command, "^task%s+(%a+)")
+			for _, offer in Data.tasks do
+				if offer.kind == kind then
+					session.task = { kind = offer.kind, count = offer.count, species = 0 }
+					session.taskCount = 0
+					session.taskDone = false
+				end
+			end
+		elseif word == "story" and n then
+			-- jump the story to second n
+			local story = opening
+			if story then
+				story.time = n
+			end
+		elseif word == "light" then
+			-- the lighthouse task, and her 50 m out from the lighthouse island, facing it
+			local island = session.bed.islands[1]
+			session.task = { kind = "light", count = 1, species = -1 }
+			session.taskCount = 0
+			session.taskDone = false
+			local away = math.sqrt(island.cx ^ 2 + island.cz ^ 2)
+			local ox, oz = island.cx / away, island.cz / away
+			s:reset(island.cx - ox * 50, Rules.SEA_LEVEL - 2, island.cz - oz * 50, math.atan2(ox, oz))
+		elseif word == "sam" then
+			-- Sam's boat 25 m ahead of her
+			session.samX, session.samZ = s.x + s.dx * 25, s.z + s.dz * 25
 		end
 	end
 	player:GetAttributeChangedSignal("SpringCheat"):Connect(function()

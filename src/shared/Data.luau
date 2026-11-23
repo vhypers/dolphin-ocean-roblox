@@ -1,5 +1,5 @@
 --!strict
--- Generated from the Godot game's data/game_data.json and data/text.json (R1 uses the Red Sea only).
+-- Generated from the Godot game's data/game_data.json and data/text.json (only the Red Sea is used so far).
 -- Regenerate rather than edit by hand.
 
 local Data = {}
@@ -46,5 +46,43 @@ Data.redSeaIslands = {
 
 -- for each fish school: the island it lives by (0-based), or -1 for open water
 Data.schoolHomes = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, -1, -1, -1, -1, -1 }
+
+-- how to say "5 of this fish" (catch 5 ...), per species
+Data.many = {
+	{ en = "anthias", ru = "антиасов" },
+	{ en = "fusiliers", ru = "фузилёров" },
+	{ en = "sergeant majors", ru = "сержантов" },
+	{ en = "butterflyfish", ru = "рыб-бабочек" },
+	{ en = "bannerfish", ru = "рыб-вымпелов" },
+	{ en = "surgeonfish", ru = "хирургов" },
+	{ en = "tangs", ru = "зебрасом" },
+	{ en = "parrotfish", ru = "рыб-попугаев" },
+	{ en = "herring", ru = "сельдей" },
+	{ en = "cod", ru = "тресок" },
+	{ en = "mackerel", ru = "скумбрий" },
+	{ en = "icefish", ru = "ледяных рыб" },
+}
+
+-- Sam's daily tasks, in the order of the Godot game's data (the first is day 1's); ru overrides
+-- from text.json are applied. The extra tasks of 0.6 follow.
+Data.tasks = {
+	{ kind = "fish", count = 12, short = "Catch 12 fish", full = "catch 12 fish", shortRu = "Поймай 12 рыб", fullRu = "поймай 12 рыб" },
+	{ kind = "kinds", count = 3, short = "3 kinds of fish", full = "catch three different kinds of fish", shortRu = "3 вида рыб", fullRu = "поймай рыб трёх разных видов" },
+	{ kind = "light", count = 1, short = "Find the lighthouse", full = "swim to the island with the lighthouse", shortRu = "Найди маяк", fullRu = "доплыви до острова с маяком" },
+	{ kind = "jump", count = 3, short = "3 jumps", full = "leap out of the water 3 times", shortRu = "3 прыжка", fullRu = "выпрыгни из воды 3 раза" },
+	{ kind = "shark", count = 1, short = "Chase off a shark", full = "chase off a shark with a hit or with your pod", shortRu = "Прогони акулу", fullRu = "прогони акулу ударом или стаей" },
+	{ kind = "dugong", count = 1, short = "Find a dugong", full = "find a dugong in the seagrass meadow", shortRu = "Найди дюгоня", fullRu = "найди дюгоня на лугу морской травы" },
+	{ kind = "turtle", count = 1, short = "Find a turtle", full = "find a sea turtle", shortRu = "Найди черепаху", fullRu = "найди морскую черепаху" },
+	{ kind = "sting", count = 1, short = "Find a ray", full = "find a ray on the sand by the reef", shortRu = "Найди ската", fullRu = "найди ската на песке у рифа" },
+	{ kind = "heal", count = 1, short = "Healing coral", full = "rub against a glowing healing coral", shortRu = "Лечебный коралл", fullRu = "потрись о светящийся лечебный коралл" },
+	{ kind = "calf", count = 3, short = "Feed the calf", full = "let the calf catch 3 fish by itself", shortRu = "Накорми малыша", fullRu = "пусть малыш сам поймает 3 рыбки" },
+	{ kind = "boat", count = 1, short = "Jump by Sam's boat", full = "leap out of the water next to Sam's boat", shortRu = "Прыжок у лодки Сэма", fullRu = "выпрыгни из воды рядом с лодкой Сэма" },
+	{ kind = "cur", count = 1, short = "Ride a current", full = "find a current and ride it", shortRu = "Найди течение", fullRu = "найди течение и прокатись на нём" },
+	{ kind = "sp", count = 5, short = "", full = "", shortRu = "", fullRu = "" },
+	{ kind = "free", count = 1, short = "Free an animal", full = "free an animal caught in a net", shortRu = "Освободи животное", fullRu = "освободи животное, попавшее в сеть" },
+	{ kind = "treasure", count = 3, short = "3 treasures", full = "find 3 treasures by the reefs or at the wreck", shortRu = "3 сокровища", fullRu = "найди 3 сокровища у рифов или у затонувшего корабля" },
+	{ kind = "rings", count = 3, short = "3 rings", full = "leap through the 3 rings by Sam's boat", shortRu = "3 кольца", fullRu = "пропрыгни через 3 кольца у лодки Сэма" },
+	{ kind = "tricks", count = 3, short = "3 spins", full = "spin 3 times in the air (hold Boost while you leap)", shortRu = "3 вращения", fullRu = "сделай 3 вращения в воздухе (держи «Рывок» во время прыжка)" },
+}
 
 return Data

@@ -3,13 +3,14 @@
 The Roblox version of the dolphin game "Spring". The Godot Mac game in `~/Projects/dolphin-ocean`
 is the original and keeps developing on its own; this one is rebuilt step by step to match it.
 
-## Play R2 "Sharks and the pod"
+## Play R3 "The story and Sam"
 
 1. Open `build/Spring.rbxlx` in Roblox Studio (double-click it).
 2. Press **Play** (F5). The ocean is already baked into the file, so the title comes up straight
    away (the far sea pops in over the first few seconds). If the file ever has no ocean or an old one,
    the server builds it at start ("Building the ocean...", about 6 seconds).
-3. Press **Enter** to swim.
+3. Press **Enter** to swim. The first time in each visit the story plays first (about 53 seconds;
+   Space, Enter or a click skips it). **T** on the title plays it again.
 
 R1 "First swim" gave: the Red Sea with its ten islands, reefs and beaches; Spring with her hurt tail
 (slower at first, healing 8% a day, the scar fading); swimming, Boost, leaps, spins in the air and
@@ -32,8 +33,22 @@ R2 adds, ported from the Godot game:
 - The sonar (top right): islands, the edge of the world, fish, sharks (ringed while chasing),
   family waiting, and an arrow to the nearest fish.
 
-Not yet (later steps): Sam and his boat, the opening story, tasks, magic, nets, treasures, rings,
-other oceans and currents, diary, sound and music, saving.
+R3 adds, ported from the Godot game:
+- The story, shot for shot as in the Godot game's opening: Spring and her pod in a quiet bay, the
+  hunt, her curiosity, the fishing net, the fishermen setting her free with a hurt tail, the storm,
+  the beach where Sam and the rescuers find her, and her release from Sam's boat. Captions in English
+  and Russian between black bars; clouds and a storm for the sad part.
+- Sam's white-and-orange rescue boat, with Sam, a rescuer and a flag, 35 to 70 m from where she
+  starts (a little boat on the sonar). She can't swim through it; they wave while she is near and
+  Sam cheers when she leaps there. After a rescue she is brought back beside it.
+- Sam's task each day (the panel under her hearts): catch 12 fish, three kinds of fish, five of one
+  kind, find the lighthouse, three leaps, chase off a shark, feed the calf, leap by Sam's boat, or
+  three spins. Each done task is a star, a heart back if she lost one, and full food. Tasks that need
+  animals, healing corals, currents, nets, treasures or rings come with those steps.
+- The red-and-white lighthouse on the first island, lit at night.
+
+Not yet (later steps): magic, nets, treasures, rings, other animals, healing corals, other oceans
+and currents, weather, diary, sound and music, saving.
 
 | Action | Keys | Mouse |
 |---|---|---|
@@ -46,13 +61,14 @@ other oceans and currents, diary, sound and music, saving.
 | View (through Spring's eyes) | V | |
 | Pause | P (the game also pauses when the Roblox menu opens with Esc) | |
 | Language, difficulty (title and pause) | L, H | Click the button |
+| Watch the story (title) / skip it | T / Space, Enter | Click |
 
 ## For the next session
 
 - Rules (no Roblox needed) are in `src/shared` and are ports of the Godot scripts named in each file.
   Game logic works in metres in Godot's coordinates (sea level y = 18); views turn them into studs
   (`Rules.STUDS` = 3, sea level y = 0).
-- Tests: `tools/luau tests/run.luau` (159 checks).
+- Tests: `tools/luau tests/run.luau` (211 checks).
 - Build the place while Studio is closed: `python3 build_place.py`. It builds the scripts with Rojo
   and carries the baked ocean (the Terrain item and the shared strings it refers to) over from the
   old file, which it keeps as `build/Spring-before.rbxlx`. Never `tools/rojo build` straight over
@@ -125,7 +141,25 @@ Use the Roblox Studio MCP tools (server `Roblox_Studio`). Studio must be open on
   `user_keyboard_input`; the client's camera overrides `screen_capture`'s camera during play, so look
   at models from set angles in Edit mode instead.
 
-### Next: R3 (the story and Sam)
+### R3 tested in Studio (2026-11-23)
 
-Not started. After it: magic, nets, treasures and rings, other oceans and currents, looks, saves
-(DataStore needs publishing), sound, publishing.
+Played through the Studio MCP tools, no script errors: the title (Watch the story [T]); the story
+before the first swim and from T, every scene (the bay, the hunt, the net, caught, freed, the storm by
+the lighthouse, the beach with Sam and the rescuers, the release from Sam's boat with the crew
+waving); skipping it; Sam's task panel and "Sam asks"; a leap 15 m from Sam's boat (he cheers, the
+task's star); the lighthouse task; Sam's boat on the sonar; Russian for all of it.
+
+Fixed on the way: a key press could start and skip the story at once (skips are ignored in its first
+half second); the net's twine is thinner; the storm is darker; Sam's cheer no longer hides the "Task
+done!" message.
+
+Left as it is: people are simple block figures (the Godot game has sculpted ones); there is no
+weather in the game itself yet, only in the story.
+
+New Studio-only test commands: `task <kind>`, `sam` (his boat 25 m ahead), `light` (the lighthouse
+task, 50 m from its island) and `story N` (jump the story to second N).
+
+### Next: R4 (magic)
+
+After it: nets, treasures and rings, other oceans and currents, looks, saves (DataStore needs
+publishing), sound, publishing.

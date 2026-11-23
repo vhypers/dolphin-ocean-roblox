@@ -200,8 +200,22 @@ function DolphinView.update(self: DolphinView, dt: number, swimmer: any, tail: n
 		self.beat += dt * pace
 	end
 	local amp = if swimming then (if swimmer.boosting then 0.32 else 0.2) else 0.05
-	local a1 = math.sin(self.beat) * amp
-	local a2 = math.sin(self.beat - 0.9) * amp * 1.5
+	self:pose(root, self.beat, amp, tail)
+	-- blink while she is safe after being hurt
+	local hidden = swimmer.invulnerable > 0 and math.floor(time * 10) % 2 == 0
+	local modifier = if hidden then 0.7 else 0
+	for _, part in self.parts do
+		part.LocalTransparencyModifier = modifier
+	end
+	self.trail.Enabled = under and swimmer.boosting and swimming
+end
+
+-- Puts her at root (studs, from World.frame) with the tail at a given point of its beat (radians)
+-- and stroke (radians the tail stock turns), as the opening scenes do in the Godot game. tail is
+-- how healed her tail is: the scar shows below 1.
+function DolphinView.pose(self: DolphinView, root: CFrame, beat: number, stroke: number, tail: number)
+	local a1 = math.sin(beat) * stroke
+	local a2 = math.sin(beat - 0.9) * stroke * 1.5
 	local hinge1 = root * CFrame.new(HINGE1 * S * self.scale) * CFrame.Angles(a1, 0, 0)
 	local hinge2 = hinge1 * CFrame.new(HINGE2 * S * self.scale) * CFrame.Angles(a2, 0, 0)
 	local body = root * CFrame.Angles(-a1 * 0.15, 0, 0)
@@ -210,19 +224,11 @@ function DolphinView.update(self: DolphinView, dt: number, swimmer: any, tail: n
 		self.frames[i] = base * piece.at
 	end
 	workspace:BulkMoveTo(self.parts, self.frames, Enum.BulkMoveMode.FireCFrameChanged)
-
 	-- the scar fades as her tail heals
 	local healed = math.clamp((tail - 0.6) / 0.4, 0, 1)
 	for _, scar in self.scars do
 		scar.Transparency = 0.1 + 0.9 * healed
 	end
-	-- blink while she is safe after being hurt
-	local hidden = swimmer.invulnerable > 0 and math.floor(time * 10) % 2 == 0
-	local modifier = if hidden then 0.7 else 0
-	for _, part in self.parts do
-		part.LocalTransparencyModifier = modifier
-	end
-	self.trail.Enabled = under and swimmer.boosting and swimming
 end
 
 function DolphinView.setVisible(self: DolphinView, visible: boolean)
