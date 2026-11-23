@@ -3,7 +3,7 @@
 The Roblox version of the dolphin game "Spring". The Godot Mac game in `~/Projects/dolphin-ocean`
 is the original and keeps developing on its own; this one is rebuilt step by step to match it.
 
-## Play R1 "First swim"
+## Play R2 "Sharks and the pod"
 
 1. Open `build/Spring.rbxlx` in Roblox Studio (double-click it).
 2. Press **Play** (F5). The ocean is already baked into the file, so the title comes up straight
@@ -11,18 +11,36 @@ is the original and keeps developing on its own; this one is rebuilt step by ste
    the server builds it at start ("Building the ocean...", about 6 seconds).
 3. Press **Enter** to swim.
 
-What R1 has: the Red Sea with its ten islands, reefs and beaches; Spring with her hurt tail (slower
-at first, healing 8% a day, the scar fading); swimming, Boost, leaps, spins in the air and slow
-motion; air and breathing at the surface; food and 16 schools of fish to catch; hearts; day and
+R1 "First swim" gave: the Red Sea with its ten islands, reefs and beaches; Spring with her hurt tail
+(slower at first, healing 8% a day, the scar fading); swimming, Boost, leaps, spins in the air and
+slow motion; air and breathing at the surface; food and 16 schools of fish to catch; hearts; day and
 night; 30 days of 2 minutes; Gentle (rescuers help) and Hard; English and Russian.
 
-Not yet (later steps): sharks and the pod, Sam and his boat, the opening story, family, tasks,
-magic, nets, treasures, rings, other oceans and currents, sonar, diary, sound and music, saving.
+R2 adds, ported from the Godot game:
+- Sharks: 4 in Gentle (none chase in the first 20 seconds, and they stay slower than her), 8 in Hard
+  (faster every 25 fish). A shark within 30 m circles her before it comes in; a bite costs a heart.
+- Hit: Spring charges the nearest shark within 42 m and rams it away (then rests 5 seconds). A red
+  sight marks the shark Hit would charge.
+- Her family finds her one by one: someone waits 60 to 140 m away on days 2, 5, 8, 11, 14, 17 and 21
+  (a pink heart on the sonar) and joins her pod when she reaches them. Her mother waits on day 30, and
+  finding her wins. The pod swims with her and catches fish for her too.
+- Pod: her family dives under the nearest sharks and rams them from below; the camera rises above
+  the fight, with a moment of slow motion at the first hit (then the pod rests 15 seconds). A bigger
+  pod chases more sharks at once.
+- A calf is born the morning after the third family member arrives. Feed it by catching fish near
+  it; it grows up and joins the pod. Keep sharks away from it.
+- The sonar (top right): islands, the edge of the world, fish, sharks (ringed while chasing),
+  family waiting, and an arrow to the nearest fish.
+
+Not yet (later steps): Sam and his boat, the opening story, tasks, magic, nets, treasures, rings,
+other oceans and currents, diary, sound and music, saving.
 
 | Action | Keys | Mouse |
 |---|---|---|
 | Swim | W A S D or arrows | Hold left and drag |
 | Boost | Space or Shift | Right button, hold |
+| Hit (ram a shark) | X or Q | Left click (without dragging) |
+| Pod (call your family) | F or E | |
 | Jump | J or Enter | Wheel click |
 | Back (look behind) | B | |
 | View (through Spring's eyes) | V | |
@@ -34,10 +52,43 @@ magic, nets, treasures, rings, other oceans and currents, sonar, diary, sound an
 - Rules (no Roblox needed) are in `src/shared` and are ports of the Godot scripts named in each file.
   Game logic works in metres in Godot's coordinates (sea level y = 18); views turn them into studs
   (`Rules.STUDS` = 3, sea level y = 0).
-- Tests: `tools/luau tests/run.luau` (123 checks).
-- Build the place: `tools/rojo build -o build/Spring.rbxlx`. Once Studio has a saved ocean in that
-  file, don't rebuild over it; use `tools/rojo serve` with the Rojo plugin instead.
+- Tests: `tools/luau tests/run.luau` (159 checks).
+- Build the place while Studio is closed: `python3 build_place.py`. It builds the scripts with Rojo
+  and carries the baked ocean (the Terrain item and the shared strings it refers to) over from the
+  old file, which it keeps as `build/Spring-before.rbxlx`. Never `tools/rojo build` straight over
+  `build/Spring.rbxlx`: that drops the ocean. `build/Spring-R1.rbxlx` is the R1 place.
 - `tools/` (Rojo 7.7.1, Luau 0.748) is not in git; both come from their GitHub releases.
+
+### R2 tested in Studio (2026-11-23)
+
+Played through the Studio MCP tools, with Studio-only test commands (below): the title, sharks
+circling and coming in, the tip about Hit and Pod, the red sight, Hit charging and driving a shark
+off, a shark bite, the shallows tip, day 2 with the pink heart on the sonar, her cousin joining and
+following, the pod's charge from above with bubbles, two sharks chased by a pod of four, the calf and
+its meter, the rescue, day 30 and finding her mother (the end screen with family found and sharks
+driven off), and Russian throughout. No script errors.
+
+Fixed on the way:
+- Client modules required their neighbours without waiting, so the game sometimes never started
+  ("World is not a valid member of PlayerScripts"). They all use `WaitForChild` now.
+- The rescue screen did not cover Roblox's top bar; sharks hung still behind the title.
+
+Known and left for later:
+- Distant water sometimes shows dark blue rounded boxes on the horizon under water. They are far
+  terrain Roblox has not drawn in detail yet (they thin out after a while and come back elsewhere).
+  The open sea out to 4096 studs is 251 million terrain cells; a smaller open sea with a floor that
+  rises toward its edge, or checking how a published game (not Studio) draws it, are the next things
+  to try.
+- R2 has no sound and no round on-screen buttons (the Godot game's touch buttons); Hit and Pod show
+  in the key strip and fade while they rest. The pod's fight uses the Godot game's newest camera
+  (rising above the fight), not the older split screen.
+- The bubbles use Roblox's sparkle picture and look a little like stars.
+
+Studio-only test commands (playtest, Client): set the player's `SpringCheat` attribute to
+`day N`, `shark` (one 18 m ahead, calm over), `meet` (the waiting family member comes to her),
+`pod N` (N more family members), `calf`, `calm N` (no chases for N seconds) or `air`. The player's
+`SpringState` attribute shows a one-line summary four times a second. None of this runs in a
+published game (`RunService:IsStudio()`).
 
 ### R1 tested in Studio (2026-11-23)
 
@@ -66,15 +117,15 @@ Use the Roblox Studio MCP tools (server `Roblox_Studio`). Studio must be open on
 
 - Fix bugs in `src/` (the source of truth) and push the same edits into the open place with
   `multi_edit`. Check that Studio matches `src/` by comparing a checksum of each script's source
-  (`ScriptEditorService:GetEditorSource`) with the files. Don't `rojo build` over the place: it would
-  drop the baked ocean.
+  (`ScriptEditorService:GetEditorSource`) with the files. For a big change, close Studio, run
+  `python3 build_place.py` and open the place again (ask the user first: Studio takes focus).
 - To rebake the ocean after changing `TerrainBuilder`, `require` a fresh `Clone()` of the module (the
   Edit context keeps the old one cached) and run `.build(0)` in a `task.spawn`, then `save_place`.
 - Tell the user before a playtest (it uses their Studio window). Keys go in with
   `user_keyboard_input`; the client's camera overrides `screen_capture`'s camera during play, so look
   at models from set angles in Edit mode instead.
 
-### Next: R2 (sharks and the pod)
+### Next: R3 (the story and Sam)
 
-Not started. After it: the story and Sam, magic, nets, treasures and rings, other oceans and
-currents, looks, saves (DataStore needs publishing), sound, publishing.
+Not started. After it: magic, nets, treasures and rings, other oceans and currents, looks, saves
+(DataStore needs publishing), sound, publishing.

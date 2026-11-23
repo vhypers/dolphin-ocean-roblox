@@ -248,7 +248,8 @@ do
 	game:hurt("test")
 	check(game.rescueLeft > 0 and not game.over, "out of hearts in Gentle: the rescuers come")
 	game:step(Rules.RESCUE_TIME + 0.1, 0, 0, false)
-	check(game.lives == 3 and game.food == 100 and game.rescueLeft <= 0, "after the rescue: full hearts and food")
+	check(game.lives == 3 and game.food > 99.9 and game.rescueLeft <= 0, "after the rescue: full hearts and food")
+	check(game.calmLeft > 9.5, "after the rescue the sharks leave her alone for a while")
 	-- hunger in Hard ends the game
 	local hard = Session.new(false, 12)
 	hard.food = 0.5
@@ -259,10 +260,209 @@ do
 	last.day = Rules.DAYS
 	last.dayTime = Rules.DAY_LENGTH - 0.01
 	last:step(0.05, 0, 0, false)
-	check(last.over and last.won, "living through day 30 wins (until her family arrives in a later step)")
+	check(last.over and last.won, "living through day 30 wins")
 	-- messages
 	local talk = Session.new(true, 14)
-	check(#talk.messages == 1 and talk.messages[1].text == "Day 1. Good luck!", "the game greets her")
+	check(#talk.messages == 2 and talk.messages[1].text == "Day 1. Good luck!", "the game greets her")
+	check(string.find(talk.messages[2].text, "sonar", 1, true) ~= nil, "and points her to the sonar")
+end
+
+-- ---------- sharks and her Hit ----------
+do
+	local function flatDistance(a: any, b: any): number
+		return math.sqrt((a.x - b.x) ^ 2 + (a.z - b.z) ^ 2)
+	end
+	-- put a shark at a spot relative to her, facing her
+	local function put(game: any, shark: any, ahead: number, up: number)
+		local s = game.swimmer
+		shark.x, shark.y, shark.z = s.x + s.dx * ahead, s.y + up, s.z + s.dz * ahead
+		shark.dx, shark.dy, shark.dz = -s.dx, -s.dy, -s.dz
+	end
+
+	local gentle = Session.new(true, 21)
+	local hard = Session.new(false, 22)
+	check(#gentle.sharks == Rules.GENTLE_SHARKS and #hard.sharks == Rules.SHARKS, "4 sharks in Gentle, 8 in Hard")
+	local closest = math.huge
+	for _, shark in hard.sharks do
+		closest = math.min(closest, flatDistance(shark, hard.swimmer))
+	end
+	check(closest > 30, "no shark starts close enough to chase her")
+	check(gentle.calmLeft == Rules.GENTLE_CALM_START and hard.calmLeft == 0, "Gentle starts with 20 calm seconds")
+
+	-- calm at the start of a Gentle game
+	put(gentle, gentle.sharks[1], 12, 0)
+	gentle:step(0.1, 0, 0, false)
+	check(gentle.sharks[1].mood == "patrol", "no chase while it is calm")
+
+	-- a shark that sees her circles first, and does not bite while it circles
+	local shark = hard.sharks[1]
+	put(hard, shark, 20, 0)
+	hard:step(1 / 60, 0, 0, false)
+	check(shark.mood == "chase" and shark.circleLeft > 0, "a shark within 30 m comes for her, circling first")
+	local tip = false
+	for _, m in hard.messages do
+		tip = tip or string.find(m.text, "Press Hit (X)", 1, true) ~= nil
+	end
+	check(tip, "the first shark brings the tip about Hit and the pod")
+	put(hard, shark, 2.6, 0)
+	hard:step(1 / 60, 0, 0, false)
+	check(hard.lives == 3, "no bite while it circles")
+	-- then it bites
+	shark.circleLeft = 0
+	put(hard, shark, 2.6, 0)
+	hard:step(1 / 60, 0, 0, false)
+	check(hard.lives == 2 and shark.mood == "flee", "a bite costs a heart and the shark swims off")
+
+	-- chase speed: faster with each level in Hard, never faster than her in Gentle
+	local fast = Session.new(true, 23)
+	fast.level = 20
+	fast.calmLeft = 0
+	local chaser = fast.sharks[1]
+	put(fast, chaser, 20, 0)
+	chaser.circleLeft = 0
+	chaser.mood = "chase"
+	local x0, z0 = chaser.x, chaser.z
+	fast.swimmer.speed = 0
+	fast:_moveSharks(0.1, true)
+	local pace = math.sqrt((chaser.x - x0) ^ 2 + (chaser.z - z0) ^ 2) / 0.1
+	check(pace <= fast.swimmer:cruiseSpeed() - Rules.SHARK_BELOW_HER + 0.05, "in Gentle a chasing shark is slower than her")
+
+	-- Hit: nobody near, then a charge, then a hit
+	local hit = Session.new(false, 24)
+	for _, other in hit.sharks do
+		other.x, other.z = 250, 250
+	end
+	hit:step(1 / 60, 0, 0, false)
+	table.clear(hit.messages)
+	hit:pressAttack()
+	check(hit.attack == nil and hit.messages[1].text == "No sharks nearby", "Hit with no shark near says so")
+	local mark = hit.sharks[1]
+	put(hit, mark, 20, 0)
+	mark.mood = "patrol"
+	hit.calmLeft = 99
+	hit:step(1 / 60, 0, 0, false)
+	hit:pressAttack()
+	check(hit.attack == mark and hit.attackCooldown == Rules.ATTACK_COOLDOWN, "Hit charges the nearest shark")
+	local struck = false
+	for _ = 1, 120 do
+		hit:step(1 / 60, 0, 0, false)
+		if mark.mood == "flee" then
+			struck = true
+			break
+		end
+	end
+	check(struck and hit.driven == 1, "her charge reaches the shark and drives it off")
+	check(hit.attack == nil and hit.safeLeft > 0, "after the hit she is safe for a moment")
+	table.clear(hit.messages)
+	hit:pressAttack()
+	check(hit.messages[1].text == "Spring is gathering strength for another hit", "Hit needs 5 seconds to come back")
+end
+
+-- ---------- her family and her pod ----------
+do
+	local game = Session.new(true, 31)
+	check(#game.pod == 0 and game.lost == nil, "she starts alone")
+	table.clear(game.messages)
+	game:pressPod()
+	check(game.messages[1].text == "Your family isn't with you yet. Find them first!", "Pod before she has a family")
+	-- day 2: someone is waiting
+	game.dayTime = Rules.DAY_LENGTH - 0.01
+	game:step(0.02, 0, 0, false)
+	local lost = game.lost
+	check(game.day == 2 and lost ~= nil and game:familyDue() == 0, "on day 2 someone from her family waits nearby")
+	local s = game.swimmer
+	assert(lost)
+	local away = math.sqrt((lost.x - s.x) ^ 2 + (lost.z - s.z) ^ 2)
+	check(away > 50 and away < 150, "about 60 to 140 m away")
+	-- she swims to them
+	s.x, s.y, s.z = lost.x + 3, lost.y, lost.z
+	game:step(1 / 60, 0, 0, false)
+	check(#game.pod == 1 and game.familyFound == 1 and game.lost == nil, "they join her pod")
+	local joined = false
+	for _, m in game.messages do
+		joined = joined or m.text == "Your cousin found you!"
+	end
+	check(joined, "her cousin is first")
+	-- the pod follows her
+	for _ = 1, 180 do
+		game:step(1 / 60, 0, 0, false)
+	end
+	local mate = game.pod[1]
+	local ox, oy, oz = Rules.turn(mate.ox, mate.oy, mate.oz, s.yaw)
+	-- it trails its place by speed / 2.4, about 4 m at her cruising speed
+	check(math.sqrt((mate.x - s.x - ox) ^ 2 + (mate.z - s.z - oz) ^ 2) < 6, "the pod swims beside her")
+	-- the pod chases a shark: under it, up into its belly, and away it goes
+	game.calmLeft = 99
+	for _, other in game.sharks do
+		other.x, other.z = s.x + 200, s.z + 200
+	end
+	local shark = game.sharks[1]
+	shark.x, shark.y, shark.z = s.x + s.dx * 25, math.max(s.y, game.bed:height(s.x + s.dx * 25, s.z + s.dz * 25) + 6), s.z + s.dz * 25
+	shark.mood = "patrol"
+	table.clear(game.effects)
+	game:pressPod()
+	check(shark.mood == "flee" and mate.rush == shark and game.podCooldown == Rules.POD_COOLDOWN, "Pod sends the family at the shark")
+	local hitAt = nil
+	local rolled = 0
+	for i = 1, math.floor(Rules.POD_RUSH * 60) do
+		game:step(1 / 60, 0, 0, false)
+		if mate.struck >= 0 and hitAt == nil then
+			hitAt = i / 60
+		end
+		rolled = math.max(rolled, math.abs(shark.roll))
+	end
+	local slow = false
+	for _, e in game.effects do
+		slow = slow or e.kind == "pod_hit"
+	end
+	check(hitAt ~= nil and slow, "a mate rams the shark within the rush (" .. tostring(hitAt) .. " s)")
+	check(rolled > 2, "the hit rolls the shark over (" .. string.format("%.1f", rolled) .. " rad)")
+	check(math.abs(shark.roll) < 0.01, "and it rights itself afterwards")
+	table.clear(game.messages)
+	game:pressPod()
+	check(game.messages[1].text == "Your pod is resting, wait a little", "the pod rests 15 seconds")
+
+	-- three found: a calf is born the next morning, grows on fish and joins the pod
+	game.familyFound = 2
+	game.lost = nil
+	game.day = 7
+	game.lostIndex = -1
+	game:_checkFamily(false)
+	check(game.lost == nil, "nobody waits between family days")
+	game.day = 8
+	game:_checkFamily(false)
+	local next = game.lost
+	assert(next)
+	s.x, s.y, s.z = next.x, next.y, next.z
+	game:_moveLost(1 / 60)
+	check(game.familyFound == 3 and game.calfNext == 9, "after three family members a calf is due")
+	game.dayTime = Rules.DAY_LENGTH - 0.01
+	game:step(0.02, 0, 0, false)
+	local calf = game.calf
+	check(game.day == 9 and calf ~= nil, "a calf is born the next morning")
+	assert(calf)
+	check(calf.size < 0.5, "and it is small")
+	for _ = 1, 45 do
+		game:_feedCalf(15, 1)
+	end
+	check(game.calf == nil and #game.pod == 3 and game.raised == 1, "a grown calf joins the pod")
+
+	-- her mother waits on the last day, and finding her wins
+	local last = Session.new(true, 32)
+	last.day = Rules.DAYS
+	last:_checkFamily(true)
+	local mother = last.lost
+	check(last:familyDue() == #Session.FAMILY and mother ~= nil and mother.size == 1.0, "her mother waits on day 30")
+	assert(mother)
+	last.swimmer.x, last.swimmer.y, last.swimmer.z = mother.x, mother.y, mother.z
+	last:_moveLost(1 / 60)
+	check(last.over and last.won and last.reunited, "finding her mother wins")
+
+	-- the level goes up every 25 fish
+	local eater = Session.new(true, 33)
+	table.clear(eater.messages)
+	eater:eat(25, 0)
+	check(eater.level == 2 and eater.messages[1].text == "Level 2! Sharks are faster", "Level 2 after 25 fish")
 end
 
 -- ---------- language ----------

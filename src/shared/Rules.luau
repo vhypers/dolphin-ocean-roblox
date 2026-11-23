@@ -39,14 +39,61 @@ Rules.GRAVITY = 18.0
 Rules.JUMP_SLOW_MOTION = 0.33
 Rules.UNDER_ICE = 2.4
 
--- the story: her hurt tail
+-- sharks, her Hit and her pod
+Rules.SHARKS = 8
+Rules.ATTACK_COOLDOWN = 5.0
+Rules.ATTACK_TIME = 2.6
+Rules.ATTACK_RANGE = 42.0
+Rules.ATTACK_SAFE_AFTER = 0.7
+Rules.POD_COOLDOWN = 15.0
+Rules.POD_RANGE = 55.0
+Rules.POD_RUSH = 3.2
+Rules.POD_RUSH_SPEED = 32.0 -- fast enough to reach a fleeing shark at the edge of POD_RANGE in time
+Rules.POD_KNOCK = 9.0 -- the hit throws the shark aside
+Rules.POD_STUN = 0.6 -- and it reels for a moment
+Rules.POD_BELOW = 3.2 -- mates dive this far under the shark, then ram its belly from below
+Rules.POD_RAM_REACH = 2.2 -- a ramming mate this close hits
+Rules.POD_TUMBLE = 9.0 -- radians a second the hit rolls the shark over
+Rules.POD_BURST = 2.0 -- seconds the shark then races away
+Rules.POD_BURST_SPEED = 17.0
+Rules.POD_TRAIL_EVERY = 0.05 -- a charging mate leaves bubbles this often
+Rules.POD_SLOW_MOTION = 0.5 -- time runs at half speed for the moment of the first hit
+Rules.POD_SLOW_SECONDS = 0.9
+Rules.POD_START = 0 -- Spring lost her pod; she finds her family one by one
+-- where each pod member swims, relative to her (metres, in her own turn: y up, z ahead)
+Rules.POD_SLOTS = {
+	{ -3.6, 0.6, -5 },
+	{ 3.6, -0.4, -6 },
+	{ -2.2, 1.8, -10 },
+	{ 2.6, -1.6, -11 },
+	{ 0, 2.4, -14 },
+	{ -5, -1.2, -13 },
+	{ 5, 1, -15 },
+	{ -7.5, 0.5, -9 },
+	{ 7.5, -0.6, -10 },
+}
+Rules.CIRCLE_GENTLE = 1.5 -- seconds a shark circles her before it comes in
+Rules.CIRCLE_HARD = 1.4
+Rules.CIRCLE_RADIUS = 10.0
+
+-- the story: her hurt tail and her family
 Rules.TAIL_START = 0.6
 Rules.TAIL_PER_DAY = 0.08
 Rules.TAIL_PER_CORAL = 0.12
+-- days on which someone from her family is waiting nearby; her mother waits on the last day
+Rules.FAMILY_DAYS = { 2, 5, 8, 11, 14, 17, 21 }
+Rules.FAMILY_MEET = 8.0
+Rules.CALF_AFTER_FAMILY = 3 -- a calf is born once this many have found her
+Rules.CALF_GROWTH = 45.0
+Rules.CALF_EMPTY_AFTER = 170.0
+Rules.CALF_OFFSET = { 1.7, -0.25, -1.3 }
 
 -- gentle difficulty (the kit's rules are "hard")
 Rules.GENTLE_FOOD_EMPTY_AFTER = 150.0
 Rules.GENTLE_INVULNERABLE = 4.0
+Rules.GENTLE_SHARKS = 4
+Rules.GENTLE_CALM_START = 20.0 -- no shark chases at the start of a game
+Rules.SHARK_BELOW_HER = 1.5 -- in gentle, chasing sharks stay this much slower than she cruises
 Rules.RESCUE_TIME = 3.5
 Rules.CALM_AFTER_RESCUE = 10.0
 
@@ -125,6 +172,12 @@ function Rules.waveHeight(x: number, z: number, t: number, amp: number?): number
 		+ 0.09 * math.sin((x + z) * 0.55 + t * 2.3)
 		+ 0.05 * math.sin((x * 0.8 - z) * 0.9 + t * 2.9)
 	) * a
+end
+
+-- an offset in her own turn (y up, z ahead) turned with her heading, like Godot's rotated(UP, yaw)
+function Rules.turn(x: number, y: number, z: number, yaw: number): (number, number, number)
+	local c, s = math.cos(yaw), math.sin(yaw)
+	return x * c + z * s, y, -x * s + z * c
 end
 
 function Rules.isNight(dayTime: number): boolean

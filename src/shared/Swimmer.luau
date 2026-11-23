@@ -1,6 +1,6 @@
 --!strict
--- The player's body: swimming, jumping and breathing. A line-by-line port of the Godot game's
--- scripts/swimmer.gd (lunging and currents arrive with the sharks and oceans in later steps).
+-- The player's body: swimming, lunging at a shark, jumping and breathing. A line-by-line port of
+-- the Godot game's scripts/swimmer.gd (currents arrive with the other oceans in a later step).
 -- Positions are metres in the Godot game's coordinates; yaw 0 faces +z.
 
 local Rules = if script then require(script.Parent.Rules) else require("./Rules")
@@ -35,6 +35,10 @@ export type Swimmer = typeof(setmetatable(
 		jumping: boolean,
 		autoJump: boolean,
 		boosting: boolean,
+		lunging: boolean, -- while true she steers herself at the lunge target
+		lungeX: number,
+		lungeY: number,
+		lungeZ: number,
 		vx: number, -- jump velocity
 		vy: number,
 		vz: number,
@@ -69,6 +73,10 @@ function Swimmer.new(bed: SeaFloor.SeaFloor): Swimmer
 		jumping = false,
 		autoJump = false,
 		boosting = false,
+		lunging = false,
+		lungeX = 0,
+		lungeY = 0,
+		lungeZ = 0,
 		vx = 0,
 		vy = 0,
 		vz = 0,
@@ -105,6 +113,7 @@ function Swimmer.reset(self: Swimmer, x: number?, y: number?, z: number?, headin
 	self.jumping = false
 	self.autoJump = false
 	self.boosting = false
+	self.lunging = false
 	self._wasBreathing = false
 	self._lowWarned = false
 	self._edgeQuiet = 0
@@ -133,11 +142,25 @@ function Swimmer.cruiseSpeed(self: Swimmer): number
 	return Rules.CRUISE_SPEED * (0.78 + 0.22 * self.strength)
 end
 
+-- fast enough, nose first: a shark she meets now is hit
+function Swimmer.isRamming(self: Swimmer): boolean
+	return (self.boosting or self.lunging) and self.speed > 15.0 and not self.jumping
+end
+
 -- steerX is right, steerY is up, both from -1 to 1
 function Swimmer.step(self: Swimmer, dt: number, steerX: number, steerY: number, wantBoost: boolean)
 	steerX = clamp(steerX, -1, 1)
 	steerY = clamp(steerY, -1, 1)
-	if not self.jumping then
+	if self.jumping then
+		self.lunging = false
+	elseif self.lunging then
+		local tx, ty, tz = self.lungeX - self.x, self.lungeY - self.y, self.lungeZ - self.z
+		local distance = math.max(math.sqrt(tx * tx + ty * ty + tz * tz), 0.001)
+		local easeIn = math.min(1.0, 8.0 * dt)
+		self.yaw = Rules.lerpAngle(self.yaw, math.atan2(tx, tz), easeIn)
+		self.pitch += (clamp(math.asin(clamp(ty / distance, -1.0, 1.0)), -1.0, 1.0) - self.pitch) * easeIn
+		self.roll *= 1.0 - math.min(1.0, 6.0 * dt)
+	else
 		self.yaw -= steerX * Rules.TURN_RATE * dt
 		if math.abs(steerY) > 0.05 then
 			self.pitch += steerY * Rules.PITCH_RATE * dt
@@ -151,13 +174,15 @@ function Swimmer.step(self: Swimmer, dt: number, steerX: number, steerY: number,
 		end
 	end
 	local manual = self.autoJump or (wantBoost and self.energy > 0.0)
-	self.boosting = manual
+	self.boosting = manual or self.lunging
 	self.energy = clamp(self.energy + (if manual then -Rules.BOOST_DRAIN else Rules.BOOST_REFILL) * dt, 0.0, 1.0)
 	local topSpeed = self:cruiseSpeed() * self.speedScale
-	if manual then
+	if self.lunging then
+		topSpeed = Rules.ATTACK_SPEED * (0.8 + 0.2 * self.strength)
+	elseif manual then
 		topSpeed = Rules.BOOST_SPEED * (0.7 + 0.3 * self.strength)
 	end
-	self.speed += (topSpeed - self.speed) * math.min(1.0, 3.0 * dt)
+	self.speed += (topSpeed - self.speed) * math.min(1.0, (if self.lunging then 6.0 else 3.0) * dt)
 	self._spinHeld = wantBoost
 	if self.jumping then
 		self:_fly(dt)

@@ -4,7 +4,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Data = require(ReplicatedStorage:WaitForChild("Spring"):WaitForChild("Data"))
-local World = require(script.Parent.World)
+local World = require(script.Parent:WaitForChild("World"))
 
 local FishView = {}
 FishView.__index = FishView

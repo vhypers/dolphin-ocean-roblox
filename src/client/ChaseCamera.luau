@@ -4,7 +4,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Rules = require(ReplicatedStorage:WaitForChild("Spring"):WaitForChild("Rules"))
-local World = require(script.Parent.World)
+local World = require(script.Parent:WaitForChild("World"))
 
 local SEA = Rules.SEA_LEVEL
 local DISTANCE = 6.3
@@ -27,6 +27,12 @@ export type ChaseCamera = typeof(setmetatable(
 		basePitch: number,
 		atSurface: number,
 		shake: number,
+		-- 0 to 1: how far up above the pod's fight the camera has risen, and what it watches
+		overhead: number,
+		focusX: number,
+		focusY: number,
+		focusZ: number,
+		span: number,
 	},
 	ChaseCamera
 ))
@@ -45,7 +51,28 @@ function ChaseCamera.new(): ChaseCamera
 		basePitch = 0,
 		atSurface = 0,
 		shake = 0,
+		overhead = 0,
+		focusX = 0,
+		focusY = 0,
+		focusZ = 0,
+		span = 10,
 	}, ChaseCamera)
+end
+
+-- Up above the fight, behind her heading so forward stays up the screen, far enough to hold
+-- everyone. Steep like a helicopter where the water is deep enough; flatter near the surface.
+function ChaseCamera._helicopter(self: ChaseCamera, s: any, ceiling: number): (number, number, number)
+	local hx, hz = math.sin(s.yaw), math.cos(s.yaw)
+	local reach = Rules.clamp(self.span * 1.3 + 7.0, 13.0, 34.0)
+	local pitch = math.rad(66.0)
+	local rise = reach * math.sin(pitch)
+	local room = ceiling - self.focusY
+	if rise > room then
+		rise = math.max(room, 2.5)
+		pitch = math.asin(Rules.clamp(rise / reach, 0.2, 1.0))
+	end
+	local back = reach * math.cos(pitch)
+	return self.focusX - hx * back, self.focusY + rise, self.focusZ - hz * back
 end
 
 function ChaseCamera.snapBehind(self: ChaseCamera, s: any)
@@ -101,14 +128,18 @@ function ChaseCamera.follow(
 	local ax, ay, az = math.sin(yaw) * math.cos(tilt), math.sin(tilt), math.cos(yaw) * math.cos(tilt)
 
 	self.atSurface = if s.y > SEA - 1.2 and s.pitch > -0.2 then self.atSurface + dt else 0.0
-	if not self.above then
+	local high = Rules.smoothstep(0.0, 1.0, self.overhead)
+	if high > 0.5 then
+		self.above = false -- the helicopter view stays under the water, looking down
+		self.atSurface = 0.0
+	elseif not self.above then
 		self.above = (s.jumping and s.y > SEA) or self.atSurface > 0.35
 	elseif not s.jumping then
 		self.above = s.y > SEA - 1.7 and s.pitch > -0.3
 	end
 
 	local fx, fy, fz
-	if self.firstPerson and playing then
+	if self.firstPerson and playing and high <= 0.0 then
 		local forward = if back then 0.3 else 2.4
 		self.x = s.x + s.dx * forward
 		self.y = s.y + s.dy * forward + (if back then 0.75 else 0.35)
@@ -121,8 +152,12 @@ function ChaseCamera.follow(
 	else
 		local tx, ty, tz = s.x - ax * DISTANCE, s.y - ay * DISTANCE + LIFT, s.z - az * DISTANCE
 		local margin = 1.2 + math.max(wave - 1.0, 0.0) * 0.5
+		if high > 0.0 then
+			local hx, hy, hz = self:_helicopter(s, SEA - margin - 0.4)
+			tx, ty, tz = tx + (hx - tx) * high, ty + (hy - ty) * high, tz + (hz - tz) * high
+		end
 		ty = if self.above then math.max(ty, SEA + 2.7) else math.min(ty, SEA - margin)
-		local m = 1.0 - math.exp(-5.0 * dt)
+		local m = 1.0 - math.exp(-Rules.lerp(5.0, 4.0, high) * dt)
 		self.x += (tx - self.x) * m
 		self.y += (ty - self.y) * m
 		self.z += (tz - self.z) * m
@@ -134,6 +169,9 @@ function ChaseCamera.follow(
 		if self.above and not s.jumping then
 			fy = math.max(fy, SEA - 0.2)
 		end
+		fx += (self.focusX - fx) * high
+		fy += (self.focusY - fy) * high
+		fz += (self.focusZ - fz) * high
 	end
 
 	local wanted = Rules.clamp(65.0 + (s.speed - Rules.CRUISE_SPEED) * 0.55, 63.0, 74.0)

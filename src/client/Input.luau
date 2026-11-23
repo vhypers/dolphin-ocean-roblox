@@ -1,7 +1,8 @@
 --!strict
 -- Every action and its keys and mouse buttons, as in the Godot game's scripts/controls.gd.
 -- Swim with WASD or the arrows, or hold the left mouse button and drag (a stick from where you
--- pressed). The right mouse button held is Boost, the wheel button is Jump.
+-- pressed); a left click without a drag is Hit. The right mouse button held is Boost, the wheel
+-- button is Jump.
 -- Esc belongs to Roblox (its menu), so Pause is P and the game pauses when the menu opens.
 
 local UserInputService = game:GetService("UserInputService")
@@ -144,8 +145,13 @@ UserInputService.InputEnded:Connect(function(input: InputObject)
 	if input.UserInputType == Enum.UserInputType.Keyboard then
 		keysDown[input.KeyCode] = nil
 	elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+		-- a click without a drag is Hit, as in the Godot game; a drag only steers
+		local clicked = joyActive and not joyMoved
 		joyActive = false
 		stick = Vector2.zero
+		if clicked then
+			fire("attack")
+		end
 	elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 		rightDown = false
 	end

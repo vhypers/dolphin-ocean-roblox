@@ -3,7 +3,7 @@
 -- bottlenose dolphin, with a beating tail and a pink scar on her tail that fades as it heals.
 -- Built facing -z in its own space; sizes and places are in metres.
 
-local World = require(script.Parent.World)
+local World = require(script.Parent:WaitForChild("World"))
 
 local DolphinView = {}
 DolphinView.__index = DolphinView
@@ -16,7 +16,8 @@ local BELLY = Color3.fromRGB(0xee, 0xe5, 0xdf)
 local FIN = Color3.fromRGB(0x34, 0x40, 0x4c)
 local SCAR = Color3.fromRGB(0xd9, 0x9a, 0x9a)
 
-type Piece = { part: BasePart, at: CFrame, group: number }
+-- at: where the piece sits now; home, size and color: at full size and natural colour
+type Piece = { part: BasePart, at: CFrame, group: number, home: CFrame, size: Vector3, color: Color3 }
 
 export type DolphinView = typeof(setmetatable(
 	{} :: {
@@ -27,6 +28,8 @@ export type DolphinView = typeof(setmetatable(
 		beat: number,
 		parts: { BasePart },
 		frames: { CFrame },
+		scale: number,
+		tint: number,
 	},
 	DolphinView
 ))
@@ -64,14 +67,16 @@ local function wedge(size: Vector3, color: Color3): BasePart
 	return part
 end
 
-function DolphinView.new(parent: Instance): DolphinView
+-- name: "Spring" for her, or a family member's; scale and tint as in the Godot game's pod
+function DolphinView.new(parent: Instance, name: string?, scale: number?, tint: number?): DolphinView
 	local model = Instance.new("Model")
-	model.Name = "Spring"
+	model.Name = name or "Spring"
 	local pieces: { Piece } = {}
 	local scars: { BasePart } = {}
 	local function add(part: BasePart, at: CFrame, group: number)
 		part.Parent = model
-		table.insert(pieces, { part = part, at = CFrame.new(at.Position * S) * at.Rotation, group = group })
+		local home = CFrame.new(at.Position * S) * at.Rotation
+		table.insert(pieces, { part = part, at = home, group = group, home = home, size = part.Size, color = part.Color })
 	end
 	local function m(x: number, y: number, z: number): CFrame
 		return CFrame.new(x, y, z)
@@ -134,14 +139,15 @@ function DolphinView.new(parent: Instance): DolphinView
 	trail.Rate = 40
 	trail.Enabled = false
 	trail.Parent = holder
-	table.insert(pieces, { part = holder, at = CFrame.new(0, 0, 0.3 * S), group = 2 })
+	local trailAt = CFrame.new(0, 0, 0.3 * S)
+	table.insert(pieces, { part = holder, at = trailAt, group = 2, home = trailAt, size = holder.Size, color = holder.Color })
 
 	model.Parent = parent
 	local parts = {}
 	for _, piece in pieces do
 		table.insert(parts, piece.part)
 	end
-	return setmetatable({
+	local self = setmetatable({
 		model = model,
 		pieces = pieces,
 		scars = scars,
@@ -149,7 +155,40 @@ function DolphinView.new(parent: Instance): DolphinView
 		beat = 0,
 		parts = parts,
 		frames = table.create(#pieces, CFrame.identity),
+		scale = 1,
+		tint = 1,
 	}, DolphinView)
+	self:setScale(scale or 1)
+	self:setTint(tint or 1)
+	return self
+end
+
+-- grown-ups are 0.8 to 1 of her size, a calf about half
+function DolphinView.setScale(self: DolphinView, scale: number)
+	if math.abs(scale - self.scale) < 0.005 and scale ~= 1 then
+		return
+	end
+	self.scale = scale
+	for _, piece in self.pieces do
+		if piece.part.Name ~= "Trail" then
+			piece.part.Size = piece.size * scale
+		end
+		piece.at = CFrame.new(piece.home.Position * scale) * piece.home.Rotation
+	end
+end
+
+-- a shade lighter or darker, like each dolphin in a real pod
+function DolphinView.setTint(self: DolphinView, tint: number)
+	if tint == self.tint and tint ~= 1 then
+		return
+	end
+	self.tint = tint
+	for _, piece in self.pieces do
+		if piece.part.Name ~= "Trail" then
+			local c = piece.color
+			piece.part.Color = Color3.new(math.min(1, c.R * tint), math.min(1, c.G * tint), math.min(1, c.B * tint))
+		end
+	end
 end
 
 -- swimmer: the game's Swimmer; tail: how healed her tail is (0.6 to 1); under: under water
@@ -163,8 +202,8 @@ function DolphinView.update(self: DolphinView, dt: number, swimmer: any, tail: n
 	local amp = if swimming then (if swimmer.boosting then 0.32 else 0.2) else 0.05
 	local a1 = math.sin(self.beat) * amp
 	local a2 = math.sin(self.beat - 0.9) * amp * 1.5
-	local hinge1 = root * CFrame.new(HINGE1 * S) * CFrame.Angles(a1, 0, 0)
-	local hinge2 = hinge1 * CFrame.new(HINGE2 * S) * CFrame.Angles(a2, 0, 0)
+	local hinge1 = root * CFrame.new(HINGE1 * S * self.scale) * CFrame.Angles(a1, 0, 0)
+	local hinge2 = hinge1 * CFrame.new(HINGE2 * S * self.scale) * CFrame.Angles(a2, 0, 0)
 	local body = root * CFrame.Angles(-a1 * 0.15, 0, 0)
 	for i, piece in self.pieces do
 		local base = if piece.group == 0 then body elseif piece.group == 1 then hinge1 else hinge2

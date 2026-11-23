@@ -3,7 +3,7 @@
 -- Uses Roblox's built-in particle pictures, so nothing has to be uploaded.
 
 local Debris = game:GetService("Debris")
-local World = require(script.Parent.World)
+local World = require(script.Parent:WaitForChild("World"))
 
 local Effects = {}
 
