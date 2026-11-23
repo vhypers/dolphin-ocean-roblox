@@ -1,0 +1,39 @@
+{
+  "name": "Spring",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Spring": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "SpringServer": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "EnableMouseLockOption": false
+      },
+      "StarterPlayerScripts": {
+        "$path": "src/client"
+      }
+    },
+    "Players": {
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future"
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": false
+      }
+    }
+  }
+}
